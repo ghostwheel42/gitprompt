@@ -4,7 +4,7 @@ builds:
     binary: gitprompt
     ldflags: -s -w -X "main.version={{.Version}}" -X "main.commit={{.ShortCommit}}" -X "main.date={{.Date}}" -X "main.goversion={{.Env.GOVERSION}}"
     env:
-    - CGO_ENABLED=0
+      - CGO_ENABLED=0
 archives:
   - id: tarball
     format: tar.gz
@@ -16,12 +16,12 @@ changelog:
   sort: asc
   filters:
     exclude:
-    - '^docs:'
-    - '^test:'
+      - '^docs:'
+      - '^test:'
 brews:
-  - github:
+  - tap:
       owner: akupila
       name: homebrew-gitprompt
-  name: gitprompt
-  homepage: https://github.com/akupila/gitprompt
-  description: "git status in the prompt"
+    name: gitprompt
+    homepage: https://github.com/akupila/gitprompt
+    description: "git status in the prompt"
