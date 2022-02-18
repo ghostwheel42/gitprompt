@@ -3,6 +3,7 @@ package gitprompt
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"strconv"
@@ -53,12 +54,18 @@ var colors = map[rune]uint8{
 
 const (
 	head      rune = 'h'
+	headcolon rune = 'H'
 	untracked rune = 'u'
 	modified  rune = 'm'
 	staged    rune = 's'
 	conflicts rune = 'c'
 	ahead     rune = 'a'
 	behind    rune = 'b'
+	stashed   rune = 'S'
+	upstream  rune = 'U'
+	clean     rune = 'C'
+	local     rune = 'l'
+	if_else   rune = 'e'
 )
 
 type group struct {
@@ -73,12 +80,7 @@ type group struct {
 }
 
 // Print prints the status according to the format.
-//
-// The integer returned is the print width of the string.
-func Print(s *GitStatus, format string) (string, int) {
-	if s == nil {
-		return "", 0
-	}
+func Print(s *GitStatus, format string, zsh bool) string {
 
 	in := make(chan rune)
 	go func() {
@@ -93,10 +95,12 @@ func Print(s *GitStatus, format string) (string, int) {
 		}
 	}()
 
-	return buildOutput(s, in)
+	return buildOutput(s, in, zsh)
+
 }
 
-func buildOutput(s *GitStatus, in chan rune) (string, int) {
+func buildOutput(s *GitStatus, in chan rune, zsh bool) string {
+
 	root := &group{}
 	g := root
 
@@ -104,6 +108,11 @@ func buildOutput(s *GitStatus, in chan rune) (string, int) {
 	att := false
 	dat := false
 	esc := false
+	last := true
+
+	if zsh {
+		root.buf.WriteString("%{")
+	}
 
 	for ch := range in {
 		if esc {
@@ -125,7 +134,7 @@ func buildOutput(s *GitStatus, in chan rune) (string, int) {
 		}
 
 		if dat {
-			setData(g, s, ch)
+			setData(g, s, last, ch)
 			dat = false
 			continue
 		}
@@ -147,11 +156,23 @@ func buildOutput(s *GitStatus, in chan rune) (string, int) {
 			g.format.clearAttributes()
 			g.format.clearColor()
 		case tGroupCl:
-			if g.writeTo(&g.parent.buf) {
+			if g.parent == nil {
+				// invalid group close - just print as if escaped
+				g.addRune(ch)
+				continue
+			}
+			last = g.writeTo(&g.parent.buf)
+			if last {
 				g.parent.format = g.format
 				g.parent.format.setColor(0)
 				g.parent.format.clearAttributes()
 				g.parent.width += g.width
+			}
+			if g.hasData {
+				g.parent.hasData = true
+			}
+			if g.hasValue {
+				g.parent.hasValue = true
 			}
 			g = g.parent
 		default:
@@ -174,7 +195,12 @@ func buildOutput(s *GitStatus, in chan rune) (string, int) {
 	g.format.clearAttributes()
 	g.format.printANSI(&g.buf)
 
-	return root.buf.String(), root.width
+	if zsh {
+		root.buf.WriteString(fmt.Sprintf("%%%dG%%}", root.width))
+	}
+
+	return root.buf.String()
+
 }
 
 func setColor(g *group, ch rune) {
@@ -212,7 +238,7 @@ func setAttribute(g *group, ch rune) {
 	g.addRune(ch)
 }
 
-func setData(g *group, s *GitStatus, ch rune) {
+func setData(g *group, s *GitStatus, last bool, ch rune) {
 	switch ch {
 	case head:
 		g.hasData = true
@@ -220,6 +246,15 @@ func setData(g *group, s *GitStatus, ch rune) {
 		if s.Branch != "" {
 			g.addString(s.Branch)
 		} else {
+			g.addString(s.Sha[:7])
+		}
+	case headcolon:
+		g.hasData = true
+		g.hasValue = true
+		if s.Branch != "" {
+			g.addString(s.Branch)
+		} else {
+			g.addString(":")
 			g.addString(s.Sha[:7])
 		}
 	case modified:
@@ -256,6 +291,33 @@ func setData(g *group, s *GitStatus, ch rune) {
 		g.addInt(s.Behind)
 		g.hasData = true
 		if s.Behind > 0 {
+			g.hasValue = true
+		}
+	case stashed:
+		g.addInt(s.Stashed)
+		g.hasData = true
+		if s.Stashed > 0 {
+			g.hasValue = true
+		}
+	case upstream:
+		g.hasData = true
+		if s.Upstream != "" {
+			g.hasValue = true
+			g.addString(s.Upstream)
+		}
+	case clean:
+		g.hasData = true
+		if s.Clean {
+			g.hasValue = true
+		}
+	case local:
+		g.hasData = true
+		if s.Upstream == "" && s.Branch != "" {
+			g.hasValue = true
+		}
+	case if_else:
+		g.hasData = true
+		if !last {
 			g.hasValue = true
 		}
 	default:

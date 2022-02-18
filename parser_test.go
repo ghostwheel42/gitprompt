@@ -98,7 +98,9 @@ func TestParseValues(t *testing.T) {
 				git commit --allow-empty -m 'second'
 			`,
 			expected: &GitStatus{
-				Ahead: 1,
+				Ahead:    1,
+				Upstream: "origin/master",
+				Clean:    true,
 			},
 		},
 		{
@@ -112,7 +114,24 @@ func TestParseValues(t *testing.T) {
 				git reset --hard HEAD^
 			`,
 			expected: &GitStatus{
-				Behind: 1,
+				Behind:   1,
+				Upstream: "origin/master",
+				Clean:    true,
+			},
+		},
+		{
+			name: "stashed",
+			setup: `
+				git init
+				echo "hello" >> test
+				git add test
+				git commit -m 'initial'
+				echo "world" >> test
+				git stash
+			`,
+			expected: &GitStatus{
+				Stashed: 1,
+				Clean:   true,
 			},
 		},
 	}
@@ -146,6 +165,9 @@ func TestParseValues(t *testing.T) {
 			assertInt(t, "Conflicts", test.expected.Conflicts, actual.Conflicts)
 			assertInt(t, "Ahead", test.expected.Ahead, actual.Ahead)
 			assertInt(t, "Behind", test.expected.Behind, actual.Behind)
+			assertInt(t, "Stashed", test.expected.Stashed, actual.Stashed)
+			assertString(t, "Upstream", test.expected.Upstream, actual.Upstream)
+			assertBool(t, "Clean", test.expected.Clean, actual.Clean)
 		})
 	}
 }
@@ -261,6 +283,14 @@ func assertString(t *testing.T, name, expected, actual string) {
 }
 
 func assertInt(t *testing.T, name string, expected, actual int) {
+	t.Helper()
+	if expected == actual {
+		return
+	}
+	t.Errorf("%s does not match\n\tExpected: %v\n\tActual:   %v", name, expected, actual)
+}
+
+func assertBool(t *testing.T, name string, expected, actual bool) {
 	t.Helper()
 	if expected == actual {
 		return

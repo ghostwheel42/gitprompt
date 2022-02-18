@@ -24,12 +24,12 @@ Displays:
 - Untracked files
 - Modified files
 - Staged files
+- Conflicts
 - Commits behind / ahead remote
 
-When executed, gitprompt gets the git status of the current working directory
-then prints it according to the format specified. If the current working
-directory is not part of a git repository, gitprompt
-exits with code `0` and no output.
+When executed, gitprompt gets the git status of the current working directory then
+prints it according to the format specified. If the current working directory is
+not part of a git repository, gitprompt exits with code `0` and no output.
 
 `*` git is required
 
@@ -57,19 +57,24 @@ characters are fine, go crazy with emojis if that's your thing)_.
 Various data from git can be displayed in the output. Data tokens are prefixed
 with `%`:
 
-| token | explanation                       |
-| ----- | --------------------------------- |
-| `%h`  | Current branch or sha1            |
-| `%s`  | Number of files staged            |
-| `%b`  | Number of commits behind remote   |
-| `%a`  | Number of commits ahead of remote |
-| `%c`  | Number of conflicts               |
-| `%m`  | Number of files modified          |
-| `%u`  | Number of untracked files         |
+| token | explanation                                                |
+| ----- | ---------------------------------------------------------- |
+| `%h`  | Current branch or sha1                                     |
+| `%H`  | Current branch or first 7 hex-digits of SHA1 prefixed by : |
+| `%s`  | Number of files staged                                     |
+| `%b`  | Number of commits behind remote                            |
+| `%a`  | Number of commits ahead of remote                          |
+| `%c`  | Number of conflicts                                        |
+| `%m`  | Number of files modified                                   |
+| `%u`  | Number of untracked files                                  |
+| `%S`  | Number of stashed changes                                  |
+| `%U`  | Name of tracked upstream branch                            |
+| `%C`  | Enables group when clean (no output)                       |
+| `%l`  | Enables group when local repository (no output)            |
+| `%e`  | Enables group when last group was not enabled (no output)  |
 
-Normally `%h` displays the current branch (`master`) but if you're detached
-from `HEAD`, it will display the current sha1. Only first 7 characters of the
-sha1 are displayed.
+Normally `%h` and `%H` display the current branch (`master`) but if you're detached
+from `HEAD`, the first 7 characters of the current sha1 will be displayed.
 
 ### Colors
 
@@ -93,6 +98,7 @@ The color can be set with color tokens, prefixed with `#`:
 | `#M`  | Highlight Magenta |
 | `#C`  | Highlight Cyan    |
 | `#W`  | Highlight White   |
+| `#_`  | Reset color       |
 
 The color is set until another color overrides it, or a group ends (see below).
 If a color was set when gitprompt is done, it will add a color reset escape
@@ -169,7 +175,7 @@ gitprompt -format="#B(@b#R%h[#y >%s][#m ↓%b ↑%a][#r x%c][#g +%m][#y ϟ%u]#B)
 - If files are untracked (added since last commit), show a lightning and the number in yellow
 - `)` in highlight blue
 
-> Any text printed after gitprompt will have all formatting cleared
+> Any text printed after gitprompt will have all formatting cleared.
 
 ## Installation
 
@@ -253,7 +259,7 @@ export PS1='$PS1 $(gitprompt)'
 See [bashrcgenerator] for more, just add `$(gitprompt)` where you want the git
 status to appear.
 
-### Uninstallation
+### Uninstall
 
 1. Remove `gitprompt` from your shell config
 2. Delete the binary `rm $(which gitprompt)` or `brew uninstall gitprompt`

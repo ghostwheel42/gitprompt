@@ -4,7 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"io"
+	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -19,20 +22,29 @@ type GitStatus struct {
 	Conflicts int
 	Ahead     int
 	Behind    int
+	Stashed   int
+	Upstream  string
+	Clean     bool
 }
 
 // Parse parses the status for the repository from git. Returns nil if the
 // current directory is not part of a git repository.
 func Parse() (*GitStatus, error) {
-	status := &GitStatus{}
 
-	stat, err := runGitCommand("git", "status", "--branch", "--porcelain=2")
+	root, err := runGitCommand("git", "rev-parse", "--show-toplevel")
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "fatal:") {
 			return nil, nil
 		}
 		return nil, err
 	}
+
+	stat, err := runGitCommand("git", "status", "--branch", "--porcelain=2")
+	if err != nil {
+		return nil, err
+	}
+
+	status := &GitStatus{}
 
 	lines := strings.Split(stat, "\n")
 	for _, line := range lines {
@@ -44,17 +56,26 @@ func Parse() (*GitStatus, error) {
 		case 'u':
 			status.Conflicts++
 		case '1', '2':
-			parts := strings.Split(line, " ")
-			if parts[1][0] != '.' {
+			if line[2] != '.' {
 				status.Staged++
 			}
-			if parts[1][1] != '.' {
+			if line[3] != '.' {
 				status.Modified++
 			}
 		}
 	}
 
+	status.Clean = !(status.Untracked != 0 ||
+		status.Modified != 0 ||
+		status.Staged != 0 ||
+		status.Conflicts != 0)
+
+	if root != "" {
+		status.Stashed = countStashed(root)
+	}
+
 	return status, nil
+
 }
 
 func parseHeader(h string, s *GitStatus) {
@@ -72,6 +93,9 @@ func parseHeader(h string, s *GitStatus) {
 		}
 		return
 	}
+	if strings.HasPrefix(h, "# branch.upstream") {
+		s.Upstream = h[18:]
+	}
 	if strings.HasPrefix(h, "# branch.ab") {
 		parts := strings.Split(h, " ")
 		s.Ahead, _ = strconv.Atoi(strings.TrimPrefix(parts[2], "+"))
@@ -81,16 +105,60 @@ func parseHeader(h string, s *GitStatus) {
 }
 
 func runGitCommand(cmd string, args ...string) (string, error) {
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+
 	command := exec.Command(cmd, args...)
 	command.Stdout = bufio.NewWriter(&stdout)
 	command.Stderr = bufio.NewWriter(&stderr)
+
 	if err := command.Run(); err != nil {
 		if stderr.Len() > 0 {
 			return "", errors.New(stderr.String())
 		}
 		return "", err
 	}
+
 	return strings.TrimSpace(stdout.String()), nil
+
+}
+
+func countStashed(root string) (count int) {
+	stash, err := os.Open(path.Join(root, ".git", "refs", "stash"))
+	if err != nil {
+		return
+	}
+	count, _ = lineCounter(stash)
+	return
+}
+
+func lineCounter(r io.Reader) (int, error) {
+
+	var count int
+	const cr = '\n'
+
+	buf := make([]byte, bufio.MaxScanTokenSize)
+
+	for {
+		read, err := r.Read(buf)
+		var pos int
+		for pos < read {
+			found := bytes.IndexByte(buf[pos:read], cr)
+			if found == -1 {
+				break
+			}
+			count++
+			pos += found + 1
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return count, err
+		}
+	}
+
+	return count, nil
+
 }
