@@ -4,10 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"io"
-	"os"
 	"os/exec"
-	"path"
 	"strconv"
 	"strings"
 )
@@ -31,16 +28,11 @@ type GitStatus struct {
 // current directory is not part of a git repository.
 func Parse() (*GitStatus, error) {
 
-	root, err := runGitCommand("git", "rev-parse", "--show-toplevel")
+	stat, err := runGitCommand("git", "status", "--branch", "--porcelain=2")
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "fatal:") {
 			return nil, nil
 		}
-		return nil, err
-	}
-
-	stat, err := runGitCommand("git", "status", "--branch", "--porcelain=2")
-	if err != nil {
 		return nil, err
 	}
 
@@ -70,8 +62,10 @@ func Parse() (*GitStatus, error) {
 		status.Staged != 0 ||
 		status.Conflicts != 0)
 
-	if root != "" {
-		status.Stashed = countStashed(root)
+	if stashed, err := runGitCommand("git", "rev-list", "--walk-reflogs", "--count", "refs/stash"); err == nil {
+		if s, err := strconv.Atoi(stashed); err == nil {
+			status.Stashed = s
+		}
 	}
 
 	return status, nil
@@ -121,44 +115,5 @@ func runGitCommand(cmd string, args ...string) (string, error) {
 	}
 
 	return strings.TrimSpace(stdout.String()), nil
-
-}
-
-func countStashed(root string) (count int) {
-	stash, err := os.Open(path.Join(root, ".git", "refs", "stash"))
-	if err != nil {
-		return
-	}
-	count, _ = lineCounter(stash)
-	return
-}
-
-func lineCounter(r io.Reader) (int, error) {
-
-	var count int
-	const cr = '\n'
-
-	buf := make([]byte, bufio.MaxScanTokenSize)
-
-	for {
-		read, err := r.Read(buf)
-		var pos int
-		for pos < read {
-			found := bytes.IndexByte(buf[pos:read], cr)
-			if found == -1 {
-				break
-			}
-			count++
-			pos += found + 1
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return count, err
-		}
-	}
-
-	return count, nil
 
 }
