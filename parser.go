@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -106,6 +107,8 @@ func runGitCommand(cmd string, args ...string) (string, error) {
 	command := exec.Command(cmd, args...)
 	command.Stdout = bufio.NewWriter(&stdout)
 	command.Stderr = bufio.NewWriter(&stderr)
+	command.Env = os.Environ()
+	command.Env = append(command.Env, "LC_ALL=C")
 
 	if err := command.Run(); err != nil {
 		if stderr.Len() > 0 {
