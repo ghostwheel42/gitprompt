@@ -109,6 +109,7 @@ The color can be set with color tokens, prefixed with `#`:
 | `#C`  | Highlight Cyan    |
 | `#W`  | Highlight White   |
 | `#_`  | Reset color       |
+| `#>`  | Leak color        |
 
 The color is set until another color overrides it, or a group ends (see below).
 If a color was set when gitprompt is done, it will add a color reset escape
@@ -126,6 +127,8 @@ The text attributes can be set with attribute tokens, prefixed with `@`:
 | `@F`  | Clear faint/dim color |
 | `@i`  | Set italic            |
 | `@I`  | Clear italic          |
+| `@_`  | Reset attributes      |
+| `@>`  | Leak attributes       |
 
 As with colors, if an attribute was set when gitprompt is done, an additional
 escape code is automatically added to clear it.
@@ -160,10 +163,18 @@ without any formatting, and `ahead` in green:
 [#r behind: %b] - [#g ahead: %a]
 ```
 
-A group requires one data token to have a non-zero value. The following prints
-the current branch/sha1 in cyan, then number of staged files (if not zero),
-then commits behind and ahead (if both are not zero). This allows for symmetry,
-if it's desired to show `master >1 ↓0 ↑2` instead of `master >1 ↑2`:
+You can leak color or attributes intentionally be including a leak token. This
+prints the current branch in green if it's up to date and in red if not:
+
+```
+[[%L#g#>][%e#r#>]%h]
+```
+ 
+To be printed a group requires one data token to have a non-zero value or an
+enabled enabler. The following prints the current branch/sha1 in cyan, then
+number of staged files (if not zero), then commits behind and ahead (if both
+are not zero). This allows for symmetry, if it's desired to show
+`master >1 ↓0 ↑2` instead of `master >1 ↑2`:
 
 ```
 #c%h[ >%s][ ↓%b ↑%a]

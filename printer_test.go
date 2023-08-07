@@ -123,9 +123,27 @@ func TestPrint(t *testing.T) {
 			expected: "<master B5 A4 C3 XY>",
 		},
 		{
-			name:     "group color",
+			name:     "group color auto-reset",
 			format:   "<[#r%h]-[#g%u]%a[-#b%b]>",
 			expected: "<\x1b[31mmaster\x1b[0m-4-\x1b[34m5\x1b[0m>",
+			width:    12,
+		},
+		{
+			name:     "group color leak",
+			format:   "<[#r%h]-[#g%u]%a[-#b%b#>]>",
+			expected: "<\x1b[31mmaster\x1b[0m-4-\x1b[34m5>\x1b[0m",
+			width:    12,
+		},
+		{
+			name:     "group attribute auto-reset",
+			format:   "<[@b%h]-[@f%u]%a[-@i%b]>",
+			expected: "<\x1b[1mmaster\x1b[0m-4-\x1b[3m5\x1b[0m>",
+			width:    12,
+		},
+		{
+			name:     "group attribute leak",
+			format:   "<[@b%h]-[@f%u]%a[-@i%b@>]>",
+			expected: "<\x1b[1mmaster\x1b[0m-4-\x1b[3m5>\x1b[0m",
 			width:    12,
 		},
 		{

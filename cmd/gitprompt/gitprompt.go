@@ -105,6 +105,7 @@ func showHelp() {
     #C  Highlight Cyan
     #W  Highlight White
     #_  Reset color
+    #>  Leak color
 
   Text attributes:
     @b  Set bold
@@ -113,6 +114,8 @@ func showHelp() {
     @F  Clear faint/dim color
     @i  Set italic
     @I  Clear italic
+    @_  Reset attributes
+    @>  Leak attributes
 
 `, defaultFormat, example)
 }

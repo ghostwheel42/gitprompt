@@ -15,6 +15,7 @@ const (
 	tAttribute rune = '@'
 	tColor     rune = '#'
 	tReset     rune = '_'
+	tLeak      rune = '>'
 	tData      rune = '%'
 	tGroupOp   rune = '['
 	tGroupCl   rune = ']'
@@ -82,6 +83,8 @@ type group struct {
 	hasValue   bool
 	hasEnabler bool
 	wasEnabled bool
+	leakColor  bool
+	leakAttr   bool
 	width      int
 }
 
@@ -174,8 +177,12 @@ func buildOutput(s *GitStatus, in chan rune, zsh bool) string {
 			last = g.writeTo(&g.parent.buf)
 			if last {
 				g.parent.format = g.format
-				g.parent.format.setColor(0)
-				g.parent.format.clearAttributes()
+				if !g.leakColor {
+					g.parent.format.setColor(0)
+				}
+				if !g.leakAttr {
+					g.parent.format.clearAttributes()
+				}
 				g.parent.width += g.width
 			}
 			if g.hasData {
@@ -219,6 +226,11 @@ func setColor(g *group, ch rune) {
 		g.format.clearColor()
 		return
 	}
+	if ch == tLeak {
+		// Leak color.
+		g.leakColor = true
+		return
+	}
 	code, ok := colors[ch]
 	if ok {
 		g.format.setColor(code)
@@ -232,6 +244,11 @@ func setAttribute(g *group, ch rune) {
 	if ch == tReset {
 		// Reset attribute.
 		g.format.clearAttributes()
+		return
+	}
+	if ch == tLeak {
+		// Leak attribute.
+		g.leakAttr = true
 		return
 	}
 	code, ok := attrs[ch]
