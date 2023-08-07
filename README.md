@@ -69,15 +69,22 @@ with `%`:
 | `%u`  | Number of untracked files                                  |
 | `%S`  | Number of stashed changes                                  |
 | `%U`  | Name of tracked upstream branch                            |
-| `%C`  | Enables group when clean (no output)                       |
-| `%D`  | Enables group when not clean = dirty (no output)           |
-| `%O`  | Enables group when outdated (no output)                    |
-| `%L`  | Enables group when latest or up to date (no output)        |
-| `%l`  | Enables group when local repository (no output)            |
-| `%e`  | Enables group when last group was not enabled (no output)  |
 
 Normally `%h` and `%H` display the current branch (`master`) but if you're detached
 from `HEAD`, the first 7 characters of the current sha1 will be displayed.
+
+### Enablers
+
+The following tokens force-enable or disable a group:
+
+| token | explanation                                                |
+| ----- | ---------------------------------------------------------- |
+| `%C`  | Enable group when clean                                    |
+| `%D`  | Enable group when not clean (or dirty)                     |
+| `%O`  | Enable group when outdated                                 |
+| `%L`  | Enable group when latest (or up to date)                   |
+| `%l`  | Enable group when there's no upstream (local repository)   |
+| `%e`  | Enable group when last group was not enabled               |
 
 ### Colors
 
@@ -126,7 +133,8 @@ escape code is automatically added to clear it.
 ### Groups
 
 Groups can be used for adding logic to the format. A group's output is only
-printed if at least one item in the group has data.
+printed if at least one item in the group has data. There's one exception:
+If the group contains an enabler it is only printed if the enabler is true.
 
 | token | action      |
 | ----- | ----------- |

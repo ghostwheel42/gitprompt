@@ -63,12 +63,13 @@ const (
 	behind    rune = 'b'
 	stashed   rune = 'S'
 	upstream  rune = 'U'
-	clean     rune = 'C'
-	dirty     rune = 'D'
-	outdated  rune = 'O'
-	latest    rune = 'L'
-	local     rune = 'l'
-	if_else   rune = 'e'
+	// enablers without data
+	clean    rune = 'C'
+	dirty    rune = 'D'
+	outdated rune = 'O'
+	latest   rune = 'L'
+	local    rune = 'l'
+	if_else  rune = 'e'
 )
 
 type group struct {
@@ -77,9 +78,11 @@ type group struct {
 	parent *group
 	format formatter
 
-	hasData  bool
-	hasValue bool
-	width    int
+	hasData    bool
+	hasValue   bool
+	hasEnabler bool
+	wasEnabled bool
+	width      int
 }
 
 // Print prints the status according to the format.
@@ -163,6 +166,10 @@ func buildOutput(s *GitStatus, in chan rune, zsh bool) string {
 				// invalid group close - just print as if escaped
 				g.addRune(ch)
 				continue
+			}
+			if g.hasEnabler {
+				g.hasData = true
+				g.hasValue = g.wasEnabled
 			}
 			last = g.writeTo(&g.parent.buf)
 			if last {
@@ -309,34 +316,34 @@ func setData(g *group, s *GitStatus, last bool, ch rune) {
 			g.addString(s.Upstream)
 		}
 	case clean:
-		g.hasData = true
+		g.hasEnabler = true
 		if s.Clean {
-			g.hasValue = true
+			g.wasEnabled = true
 		}
 	case dirty:
-		g.hasData = true
+		g.hasEnabler = true
 		if !s.Clean {
-			g.hasValue = true
+			g.wasEnabled = true
 		}
 	case outdated:
-		g.hasData = true
+		g.hasEnabler = true
 		if s.Outdated {
-			g.hasValue = true
+			g.wasEnabled = true
 		}
 	case latest:
-		g.hasData = true
+		g.hasEnabler = true
 		if !s.Outdated {
-			g.hasValue = true
+			g.wasEnabled = true
 		}
 	case local:
-		g.hasData = true
+		g.hasEnabler = true
 		if s.Upstream == "" {
-			g.hasValue = true
+			g.wasEnabled = true
 		}
 	case if_else:
-		g.hasData = true
+		g.hasEnabler = true
 		if !last {
-			g.hasValue = true
+			g.wasEnabled = true
 		}
 	default:
 		g.addRune(tData)
