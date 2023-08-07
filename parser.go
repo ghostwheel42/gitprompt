@@ -23,6 +23,7 @@ type GitStatus struct {
 	Stashed   int
 	Upstream  string
 	Clean     bool
+	Outdated  bool
 }
 
 // Parse parses the status for the repository from git. Returns nil if the
@@ -58,10 +59,13 @@ func Parse() (*GitStatus, error) {
 		}
 	}
 
-	status.Clean = !(status.Untracked != 0 ||
-		status.Modified != 0 ||
-		status.Staged != 0 ||
-		status.Conflicts != 0)
+	status.Clean = status.Conflicts == 0 &&
+		status.Staged == 0 &&
+		status.Modified == 0
+	status.Outdated = !status.Clean ||
+		status.Ahead != 0 ||
+		status.Behind != 0 ||
+		status.Untracked != 0
 
 	if stashed, err := runGitCommand("git", "rev-list", "--walk-reflogs", "--count", "refs/stash"); err == nil {
 		if s, err := strconv.Atoi(stashed); err == nil {

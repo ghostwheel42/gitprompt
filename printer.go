@@ -64,6 +64,9 @@ const (
 	stashed   rune = 'S'
 	upstream  rune = 'U'
 	clean     rune = 'C'
+	dirty     rune = 'D'
+	outdated  rune = 'O'
+	latest    rune = 'L'
 	local     rune = 'l'
 	if_else   rune = 'e'
 )
@@ -310,9 +313,24 @@ func setData(g *group, s *GitStatus, last bool, ch rune) {
 		if s.Clean {
 			g.hasValue = true
 		}
+	case dirty:
+		g.hasData = true
+		if !s.Clean {
+			g.hasValue = true
+		}
+	case outdated:
+		g.hasData = true
+		if s.Outdated {
+			g.hasValue = true
+		}
+	case latest:
+		g.hasData = true
+		if !s.Outdated {
+			g.hasValue = true
+		}
 	case local:
 		g.hasData = true
-		if s.Upstream == "" && s.Branch != "" {
+		if s.Upstream == "" {
 			g.hasValue = true
 		}
 	case if_else:

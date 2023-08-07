@@ -29,6 +29,8 @@ func TestParseValues(t *testing.T) {
 			`,
 			expected: &GitStatus{
 				Untracked: 1,
+				Clean:     true,
+				Outdated:  true,
 			},
 		},
 		{
@@ -39,7 +41,9 @@ func TestParseValues(t *testing.T) {
 				git add test
 			`,
 			expected: &GitStatus{
-				Staged: 1,
+				Staged:   1,
+				Clean:    false,
+				Outdated: true,
 			},
 		},
 		{
@@ -53,6 +57,8 @@ func TestParseValues(t *testing.T) {
 			`,
 			expected: &GitStatus{
 				Modified: 1,
+				Clean:    false,
+				Outdated: true,
 			},
 		},
 		{
@@ -66,6 +72,8 @@ func TestParseValues(t *testing.T) {
 			`,
 			expected: &GitStatus{
 				Modified: 1,
+				Clean:    false,
+				Outdated: true,
 			},
 		},
 		{
@@ -86,6 +94,8 @@ func TestParseValues(t *testing.T) {
 			`,
 			expected: &GitStatus{
 				Conflicts: 1,
+				Clean:     false,
+				Outdated:  true,
 			},
 		},
 		{
@@ -101,6 +111,7 @@ func TestParseValues(t *testing.T) {
 				Ahead:    1,
 				Upstream: "origin/master",
 				Clean:    true,
+				Outdated: true,
 			},
 		},
 		{
@@ -117,6 +128,7 @@ func TestParseValues(t *testing.T) {
 				Behind:   1,
 				Upstream: "origin/master",
 				Clean:    true,
+				Outdated: true,
 			},
 		},
 		{
@@ -130,8 +142,9 @@ func TestParseValues(t *testing.T) {
 				git stash
 			`,
 			expected: &GitStatus{
-				Stashed: 1,
-				Clean:   true,
+				Stashed:  1,
+				Clean:    true,
+				Outdated: false,
 			},
 		},
 	}
@@ -168,6 +181,7 @@ func TestParseValues(t *testing.T) {
 			assertInt(t, "Stashed", test.expected.Stashed, actual.Stashed)
 			assertString(t, "Upstream", test.expected.Upstream, actual.Upstream)
 			assertBool(t, "Clean", test.expected.Clean, actual.Clean)
+			assertBool(t, "Outdated", test.expected.Outdated, actual.Outdated)
 		})
 	}
 }

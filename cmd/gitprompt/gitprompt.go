@@ -79,6 +79,9 @@ func showHelp() {
     %%S  Number of stashed changes
     %%U  Name of tracked upstream branch
     %%C  Enables group when clean (no output)
+    %%D  Enables group when not clean = dirty (no output)
+    %%O  Enables group when outdated (no output)
+    %%L  Enables group when latest or up to date (no output)
     %%l  Enables group when local repository (no output)
     %%e  Enables group when last group was not enabled (no output)
 
