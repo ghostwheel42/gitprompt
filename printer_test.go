@@ -1,6 +1,9 @@
 package gitprompt
 
 import (
+	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -13,39 +16,43 @@ var all = &GitStatus{
 	Conflicts: 3,
 	Ahead:     4,
 	Behind:    5,
+	Stashed:   6,
+	Upstream:  "origin/master",
+	Clean:     true,
 }
 
-func TestPrinterEmpty(t *testing.T) {
-	actual, w := Print(nil, "%h")
-	assertOutput(t, "", actual)
-	assertWidth(t, 0, w)
-}
-
-func TestPrinterData(t *testing.T) {
-	actual, w := Print(all, "%h %u %m %s %c %a %b")
-	assertOutput(t, "master 0 1 2 3 4 5", actual)
-	assertWidth(t, 18, w)
-}
-
-func TestPrinterUnicode(t *testing.T) {
-	actual, w := Print(all, "%h ✋%u ⚡️%m 🚚%s ❗️%c ⬆%a ⬇%b")
-	assertOutput(t, "master ✋0 ⚡️1 🚚2 ❗️3 ⬆4 ⬇5", actual)
-	assertWidth(t, 26, w)
-}
-
-func TestShortSHA(t *testing.T) {
-	actual, w := Print(&GitStatus{Sha: "858828b5e153f24644bc867598298b50f8223f9b"}, "%h")
-	assertOutput(t, "858828b", actual)
-	assertWidth(t, 7, w)
-}
-
-func TestPrinterColorAttributes(t *testing.T) {
+func TestPrint(t *testing.T) {
 	tests := []struct {
 		name     string
+		status   *GitStatus
 		format   string
 		expected string
 		width    int
 	}{
+		// output
+		{
+			name:     "empty",
+			format:   "%e",
+			expected: "",
+		},
+		{
+			name:     "all data",
+			format:   "%h %u %m %s %c %a %b %S %U",
+			expected: "master 0 1 2 3 4 5 6 origin/master",
+		},
+		{
+			name:     "unicode",
+			format:   "%h ✋%u ⚡️%m 🚚%s ❗️%c ⬆%a ⬇%b",
+			expected: "master ✋0 ⚡️1 🚚2 ❗️3 ⬆4 ⬇5",
+			width:    26,
+		},
+		{
+			name:     "sha",
+			status:   &GitStatus{Sha: "858828b5e153f24644bc867598298b50f8223f9b"},
+			format:   "%h%H",
+			expected: "858828b:858828b",
+		},
+		// colors
 		{
 			name:     "red",
 			format:   "#r%h",
@@ -98,91 +105,72 @@ func TestPrinterColorAttributes(t *testing.T) {
 			name:     "ending with #",
 			format:   "%h#",
 			expected: "master#",
-			width:    7,
 		},
 		{
 			name:     "ending with !",
 			format:   "%h!",
 			expected: "master!",
-			width:    7,
 		},
 		{
 			name:     "ending with @",
 			format:   "%h@",
 			expected: "master@",
-			width:    7,
 		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			actual, w := Print(all, test.format)
-			assertOutput(t, test.expected, actual)
-			assertWidth(t, test.width, w)
-		})
-	}
-}
-
-func TestPrinterGroups(t *testing.T) {
-	tests := []struct {
-		name     string
-		format   string
-		expected string
-		width    int
-	}{
+		// groups
 		{
 			name:     "groups",
-			format:   "<[%h][ B%b A%a][ U%u][ C%c]>",
-			expected: "<master B5 A4 C3>",
-			width:    17,
+			format:   "<[%h][ B%b A%a][ U%u][ C%c][ %CX][%ll][%eY]>",
+			expected: "<master B5 A4 C3 XY>",
 		},
 		{
-			name:     "group color",
+			name:     "group color auto-reset",
 			format:   "<[#r%h]-[#g%u]%a[-#b%b]>",
 			expected: "<\x1b[31mmaster\x1b[0m-4-\x1b[34m5\x1b[0m>",
 			width:    12,
 		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			actual, w := Print(all, test.format)
-			assertOutput(t, test.expected, actual)
-			assertWidth(t, test.width, w)
-		})
-	}
-}
-
-func TestPrinterNonMatching(t *testing.T) {
-	tests := []struct {
-		name     string
-		format   string
-		expected string
-		width    int
-	}{
+		{
+			name:     "group color leak",
+			format:   "<[#r%h]-[#g%u]%a[-#b%b#>]>",
+			expected: "<\x1b[31mmaster\x1b[0m-4-\x1b[34m5>\x1b[0m",
+			width:    12,
+		},
+		{
+			name:     "group attribute auto-reset",
+			format:   "<[@b%h]-[@f%u]%a[-@i%b]>",
+			expected: "<\x1b[1mmaster\x1b[0m-4-\x1b[3m5\x1b[0m>",
+			width:    12,
+		},
+		{
+			name:     "group attribute leak",
+			format:   "<[@b%h]-[@f%u]%a[-@i%b@>]>",
+			expected: "<\x1b[1mmaster\x1b[0m-4-\x1b[3m5>\x1b[0m",
+			width:    12,
+		},
+		{
+			name:     "group invalid",
+			format:   "]",
+			expected: "]",
+		},
+		// non matching
 		{
 			name:     "data valid odd",
 			format:   "%%%h",
 			expected: "%%master",
-			width:    8,
 		},
 		{
 			name:     "data valid even",
 			format:   "%%%%h",
 			expected: "%%%%h",
-			width:    5,
 		},
 		{
 			name:     "data invalid odd",
 			format:   "%%%z",
 			expected: "%%%z",
-			width:    4,
 		},
 		{
 			name:     "data invalid even",
 			format:   "%%%%z",
 			expected: "%%%%z",
-			width:    5,
 		},
 		{
 			name:     "color valid odd",
@@ -194,19 +182,16 @@ func TestPrinterNonMatching(t *testing.T) {
 			name:     "color valid even",
 			format:   "####rA",
 			expected: "####rA",
-			width:    6,
 		},
 		{
 			name:     "color invalid odd",
 			format:   "###zA",
 			expected: "###zA",
-			width:    5,
 		},
 		{
 			name:     "color invalid even",
 			format:   "####zA",
 			expected: "####zA",
-			width:    6,
 		},
 		{
 			name:     "attribute valid odd",
@@ -218,106 +203,100 @@ func TestPrinterNonMatching(t *testing.T) {
 			name:     "attribute valid even",
 			format:   "@@@@bA",
 			expected: "@@@@bA",
-			width:    6,
 		},
 		{
 			name:     "attribute invalid odd",
 			format:   "@@@zA",
 			expected: "@@@zA",
-			width:    5,
 		},
 		{
 			name:     "attribute invalid even",
 			format:   "@@@@zA",
 			expected: "@@@@zA",
-			width:    6,
 		},
 		{
 			name:     "trailing %",
 			format:   "A%",
 			expected: "A%",
-			width:    2,
 		},
 		{
 			name:     "trailing #",
 			format:   "A#",
 			expected: "A#",
-			width:    2,
 		},
 		{
 			name:     "trailing @",
 			format:   "A@",
 			expected: "A@",
-			width:    2,
 		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			actual, w := Print(all, test.format)
-			assertOutput(t, test.expected, actual)
-			assertWidth(t, test.width, w)
-		})
-	}
-}
-
-func TestPrinterEscape(t *testing.T) {
-	tests := []struct {
-		name     string
-		format   string
-		expected string
-		width    int
-	}{
+		// escapes
 		{
 			name:     "data",
 			format:   "A\\%h",
 			expected: "A%h",
-			width:    3,
 		},
 		{
 			name:     "color",
 			format:   "A\\#rB",
 			expected: "A#rB",
-			width:    4,
 		},
 		{
 			name:     "attribute",
 			format:   "A\\!bB",
 			expected: "A!bB",
-			width:    4,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual, w := Print(all, test.format)
-			assertOutput(t, test.expected, actual)
-			assertWidth(t, test.width, w)
+
+			if test.status == nil {
+				test.status = all
+			}
+			if test.width == 0 {
+				test.width = len(test.expected)
+			}
+			actual := Print(test.status, test.format, true)
+
+			// check zsh-formatted output: "%{<OUTPUT>%<WIDTH>G%}"
+			expected := fmt.Sprintf("%%{%s%%%dG%%}", test.expected, test.width)
+			if !strings.HasPrefix(actual, "%{") || !strings.HasSuffix(actual, "G%}") {
+				fail(t, "Invalid zsh-formatted output", expected, actual)
+				return
+			}
+			actual = actual[2 : len(actual)-3]
+
+			split := strings.LastIndex(actual, "%")
+			if split < 0 {
+				fail(t, "Invalid zsh-formatted output", expected, actual)
+				return
+			}
+			width, err := strconv.Atoi(actual[split+1:])
+			actual = actual[:split]
+			if err != nil {
+				fail(t, "Invalid zsh-formatted output", expected, actual)
+				return
+			}
+
+			if width != test.width {
+				fail(t, fmt.Sprintf("Width does not match; expected %d, actual %d", test.width, width),
+					test.expected, actual)
+				return
+			}
+
+			if actual != test.expected {
+				fail(t, "Output mismatch", test.expected, actual)
+				return
+			}
+
 		})
 	}
 }
 
-func assertOutput(t *testing.T, expected, actual string) {
+func fail(t *testing.T, message, expected, actual string) {
 	t.Helper()
-	if actual == expected {
-		return
-	}
-	actualEscaped := actual + "\x1b[0m"
-	t.Errorf(`
-Expected:    %s
-            %q
-Actual:      %s
-            %q`,
-		expected,
-		expected,
-		actualEscaped,
-		actual,
+	t.Errorf(
+		"%s\nExpected:  %s\n          %q\nActual:    %s\x1b[0m\n          %q",
+		message, expected, expected, actual, actual,
 	)
-}
-
-func assertWidth(t *testing.T, expected, actual int) {
-	t.Helper()
-	if expected != actual {
-		t.Errorf("Width does not match; expected %d, actual %d", expected, actual)
-	}
 }

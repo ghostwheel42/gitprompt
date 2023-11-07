@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -19,12 +20,15 @@ type GitStatus struct {
 	Conflicts int
 	Ahead     int
 	Behind    int
+	Stashed   int
+	Upstream  string
+	Clean     bool
+	Outdated  bool
 }
 
 // Parse parses the status for the repository from git. Returns nil if the
 // current directory is not part of a git repository.
 func Parse() (*GitStatus, error) {
-	status := &GitStatus{}
 
 	stat, err := runGitCommand("git", "status", "--branch", "--porcelain=2")
 	if err != nil {
@@ -33,6 +37,8 @@ func Parse() (*GitStatus, error) {
 		}
 		return nil, err
 	}
+
+	status := &GitStatus{}
 
 	lines := strings.Split(stat, "\n")
 	for _, line := range lines {
@@ -44,17 +50,31 @@ func Parse() (*GitStatus, error) {
 		case 'u':
 			status.Conflicts++
 		case '1', '2':
-			parts := strings.Split(line, " ")
-			if parts[1][0] != '.' {
+			if line[2] != '.' {
 				status.Staged++
 			}
-			if parts[1][1] != '.' {
+			if line[3] != '.' {
 				status.Modified++
 			}
 		}
 	}
 
+	status.Clean = status.Conflicts == 0 &&
+		status.Staged == 0 &&
+		status.Modified == 0
+	status.Outdated = !status.Clean ||
+		status.Ahead != 0 ||
+		status.Behind != 0 ||
+		status.Untracked != 0
+
+	if stashed, err := runGitCommand("git", "rev-list", "--walk-reflogs", "--count", "refs/stash"); err == nil {
+		if s, err := strconv.Atoi(stashed); err == nil {
+			status.Stashed = s
+		}
+	}
+
 	return status, nil
+
 }
 
 func parseHeader(h string, s *GitStatus) {
@@ -72,6 +92,9 @@ func parseHeader(h string, s *GitStatus) {
 		}
 		return
 	}
+	if strings.HasPrefix(h, "# branch.upstream") {
+		s.Upstream = h[18:]
+	}
 	if strings.HasPrefix(h, "# branch.ab") {
 		parts := strings.Split(h, " ")
 		s.Ahead, _ = strconv.Atoi(strings.TrimPrefix(parts[2], "+"))
@@ -81,16 +104,23 @@ func parseHeader(h string, s *GitStatus) {
 }
 
 func runGitCommand(cmd string, args ...string) (string, error) {
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+
 	command := exec.Command(cmd, args...)
 	command.Stdout = bufio.NewWriter(&stdout)
 	command.Stderr = bufio.NewWriter(&stderr)
+	command.Env = os.Environ()
+	command.Env = append(command.Env, "LC_ALL=C")
+
 	if err := command.Run(); err != nil {
 		if stderr.Len() > 0 {
 			return "", errors.New(stderr.String())
 		}
 		return "", err
 	}
+
 	return strings.TrimSpace(stdout.String()), nil
+
 }

@@ -40,87 +40,114 @@ func (f *formatFlag) String() string {
 	return defaultFormat
 }
 
-var format formatFlag
+func showHelp() {
 
-var exampleStatus = &gitprompt.GitStatus{
-	Branch:    "master",
-	Sha:       "0455b83f923a40f0b485665c44aa068bc25029f5",
-	Untracked: 1,
-	Modified:  2,
-	Staged:    3,
-	Conflicts: 4,
-	Ahead:     5,
-	Behind:    6,
-}
+	var exampleStatus = &gitprompt.GitStatus{
+		Branch:    "master",
+		Sha:       "0455b83f923a40f0b485665c44aa068bc25029f5",
+		Untracked: 1,
+		Modified:  2,
+		Staged:    3,
+		Conflicts: 4,
+		Ahead:     5,
+		Behind:    6,
+		Stashed:   7,
+		Upstream:  "origin/master",
+		Clean:     true,
+	}
 
-var formatHelp = func() string {
-	example, _ := gitprompt.Print(exampleStatus, defaultFormat)
-	return fmt.Sprintf(`Define output format.
+	out := flag.CommandLine.Output()
 
-Default format is: %q
-Example result:    %s
+	fmt.Fprintf(out, "Usage:\n\n")
+	flag.CommandLine.PrintDefaults()
 
-Data:
-	%%h	Current branch or SHA1
-	%%s	Number of files staged
-	%%b	Number of commits behind remote
-	%%a	Number of commits ahead of remote
-	%%c	Number of conflicts
-	%%m	Number of files modified
-	%%u	Number of untracked files
+	example := gitprompt.Print(exampleStatus, defaultFormat, false)
 
-Colors:
-	#k	Black
-	#r	Red
-	#g	Green
-	#y	Yellow
-	#b	Blue
-	#m	Magenta
-	#c	Cyan
-	#w	White
-	#K	Highlight Black
-	#R	Highlight Red
-	#G	Highlight Green
-	#Y	Highlight Yellow
-	#B	Highlight Blue
-	#M	Highlight Magenta
-	#C	Highlight Cyan
-	#W	Highlight White
+	fmt.Fprintf(out, `
+  Default format: %q
+  Example result: %s
 
-Text attributes:
-	@b	Set bold
-	@B	Clear bold
-	@f	Set faint/dim color
-	@F	Clear faint/dim color
-	@i	Set italic
-	@I	Clear italic`, defaultFormat, example)
+  Data:
+    %%h  Current branch or first 7 hex-digits of SHA1
+    %%H  Current branch or first 7 hex-digits of SHA1 prefixed by :
+    %%s  Number of files staged
+    %%b  Number of commits behind remote
+    %%a  Number of commits ahead of remote
+    %%c  Number of conflicts
+    %%m  Number of files modified
+    %%u  Number of untracked files
+    %%S  Number of stashed changes
+    %%U  Name of tracked upstream branch
+
+  Enablers force-enable a group:
+    %%C  Enable group when clean
+    %%D  Enable group when not clean (or dirty)
+    %%O  Enable group when outdated
+    %%L  Enable group when latest (or up to date)
+    %%l  Enable group when there's no upstream (local repository)
+    %%e  Enable group when last group was not enabled
+
+  Colors:
+    #k  Black
+    #r  Red
+    #g  Green
+    #y  Yellow
+    #b  Blue
+    #m  Magenta
+    #c  Cyan
+    #w  White
+    #K  Highlight Black
+    #R  Highlight Red
+    #G  Highlight Green
+    #Y  Highlight Yellow
+    #B  Highlight Blue
+    #M  Highlight Magenta
+    #C  Highlight Cyan
+    #W  Highlight White
+    #_  Reset color
+    #>  Leak color
+
+  Text attributes:
+    @b  Set bold
+    @B  Clear bold
+    @f  Set faint/dim color
+    @F  Clear faint/dim color
+    @i  Set italic
+    @I  Clear italic
+    @_  Reset attributes
+    @>  Leak attributes
+
+`, defaultFormat, example)
 }
 
 func main() {
-	v := flag.Bool("version", false, "Print version inforformation.")
+
+	var format formatFlag
+
+	v := flag.Bool("version", false, "Print version information")
 	zsh := flag.Bool("zsh", false, "Print zsh width control characters")
-	flag.Var(&format, "format", formatHelp())
+	flag.Usage = showHelp
+	flag.Var(&format, "format", "Define output format (see below)")
 	flag.Parse()
 
 	if *v {
-		fmt.Printf("Version:    %s\n", version)
-		fmt.Printf("Commit:     %s\n", commit)
-		fmt.Printf("Build date: %s\n", date)
-		fmt.Printf("Go version: %s\n", goversion)
+		fmt.Printf(
+			"Version:    %s\nCommit:     %s\nBuild date: %s\nGo version: %s\n",
+			version, commit, date, goversion)
 		os.Exit(0)
 	}
 
 	s, err := gitprompt.Parse()
 	if err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
+		if !*zsh {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		os.Exit(1)
 	}
 	if s == nil {
 		return
 	}
-	out, num := gitprompt.Print(s, format.String())
-	_, _ = fmt.Fprint(os.Stdout, out)
-	if *zsh {
-		_, _ = fmt.Fprintf(os.Stdout, "%%%dG", num)
-	}
+
+	fmt.Print(gitprompt.Print(s, format.String(), *zsh))
+
 }

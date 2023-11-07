@@ -24,28 +24,32 @@ func TestParseValues(t *testing.T) {
 		{
 			name: "dirty",
 			setup: `
-				git init
+				git init --initial-branch=master || git init
 				touch test
 			`,
 			expected: &GitStatus{
 				Untracked: 1,
+				Clean:     true,
+				Outdated:  true,
 			},
 		},
 		{
 			name: "staged",
 			setup: `
-				git init
+				git init --initial-branch=master || git init
 				touch test
 				git add test
 			`,
 			expected: &GitStatus{
-				Staged: 1,
+				Staged:   1,
+				Clean:    false,
+				Outdated: true,
 			},
 		},
 		{
 			name: "modified",
 			setup: `
-				git init
+				git init --initial-branch=master || git init
 				echo "hello" >> test
 				git add test
 				git commit -m 'initial'
@@ -53,12 +57,14 @@ func TestParseValues(t *testing.T) {
 			`,
 			expected: &GitStatus{
 				Modified: 1,
+				Clean:    false,
+				Outdated: true,
 			},
 		},
 		{
 			name: "deleted",
 			setup: `
-				git init
+				git init --initial-branch=master || git init
 				echo "hello" >> test
 				git add test
 				git commit -m 'initial'
@@ -66,12 +72,14 @@ func TestParseValues(t *testing.T) {
 			`,
 			expected: &GitStatus{
 				Modified: 1,
+				Clean:    false,
+				Outdated: true,
 			},
 		},
 		{
 			name: "conflicts",
 			setup: `
-				git init
+				git init --initial-branch=master || git init
 				git commit --allow-empty -m 'initial'
 				git checkout -b other
 				git checkout master
@@ -86,25 +94,30 @@ func TestParseValues(t *testing.T) {
 			`,
 			expected: &GitStatus{
 				Conflicts: 1,
+				Clean:     false,
+				Outdated:  true,
 			},
 		},
 		{
 			name: "ahead",
 			setup: `
-				git init
+				git init --initial-branch=master || git init
 				git remote add origin $REMOTE
 				git commit --allow-empty -m 'first'
 				git push -u origin HEAD
 				git commit --allow-empty -m 'second'
 			`,
 			expected: &GitStatus{
-				Ahead: 1,
+				Ahead:    1,
+				Upstream: "origin/master",
+				Clean:    true,
+				Outdated: true,
 			},
 		},
 		{
 			name: "behind",
 			setup: `
-				git init
+				git init --initial-branch=master || git init
 				git remote add origin $REMOTE
 				git commit --allow-empty -m 'first'
 				git commit --allow-empty -m 'second'
@@ -112,7 +125,26 @@ func TestParseValues(t *testing.T) {
 				git reset --hard HEAD^
 			`,
 			expected: &GitStatus{
-				Behind: 1,
+				Behind:   1,
+				Upstream: "origin/master",
+				Clean:    true,
+				Outdated: true,
+			},
+		},
+		{
+			name: "stashed",
+			setup: `
+				git init --initial-branch=master || git init
+				echo "hello" >> test
+				git add test
+				git commit -m 'initial'
+				echo "world" >> test
+				git stash
+			`,
+			expected: &GitStatus{
+				Stashed:  1,
+				Clean:    true,
+				Outdated: false,
 			},
 		},
 	}
@@ -146,6 +178,10 @@ func TestParseValues(t *testing.T) {
 			assertInt(t, "Conflicts", test.expected.Conflicts, actual.Conflicts)
 			assertInt(t, "Ahead", test.expected.Ahead, actual.Ahead)
 			assertInt(t, "Behind", test.expected.Behind, actual.Behind)
+			assertInt(t, "Stashed", test.expected.Stashed, actual.Stashed)
+			assertString(t, "Upstream", test.expected.Upstream, actual.Upstream)
+			assertBool(t, "Clean", test.expected.Clean, actual.Clean)
+			assertBool(t, "Outdated", test.expected.Outdated, actual.Outdated)
 		})
 	}
 }
@@ -155,7 +191,7 @@ func TestParseHead(t *testing.T) {
 	defer done()
 
 	setupCommands(t, dir, `
-		git init
+		git init --initial-branch=master || git init
 	`)
 	s, _ := Parse()
 	assertString(t, "branch", "master", s.Branch)
@@ -261,6 +297,14 @@ func assertString(t *testing.T, name, expected, actual string) {
 }
 
 func assertInt(t *testing.T, name string, expected, actual int) {
+	t.Helper()
+	if expected == actual {
+		return
+	}
+	t.Errorf("%s does not match\n\tExpected: %v\n\tActual:   %v", name, expected, actual)
+}
+
+func assertBool(t *testing.T, name string, expected, actual bool) {
 	t.Helper()
 	if expected == actual {
 		return
